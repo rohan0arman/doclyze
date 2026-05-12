@@ -8,3 +8,13 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Environment variables
+.env
+
+# Google OAuth tokens
+token.json
+credentials.json
+
+# UV lock
+uv.lock
