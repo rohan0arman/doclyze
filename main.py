@@ -1,5 +1,6 @@
 import os
 import re
+import json
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -19,6 +20,19 @@ app = FastAPI(title="Doclyze")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 summaries_store: list[dict] = []
+
+
+creds_raw = os.getenv("GOOGLE_CREDENTIALS_JSON")
+
+if not creds_raw:
+    raise RuntimeError("GOOGLE_CREDENTIALS_JSON missing")
+
+try:
+    creds = json.loads(creds_raw)
+except json.JSONDecodeError:
+    raise RuntimeError("Invalid GOOGLE_CREDENTIALS_JSON")
+
+Path("credentials.json").write_text(json.dumps(creds))
 
 
 def extract_folder_id(url_or_id: str) -> str | None:
