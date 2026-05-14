@@ -1,5 +1,8 @@
 {
   "$schema": "https://railpack.com/schema.json",
+  "install": [
+    "uv sync"
+  ],
   "start": {
     "cmd": "uv run gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
   }
