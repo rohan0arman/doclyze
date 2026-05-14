@@ -33,11 +33,15 @@ def generate_pdf(summaries: list[dict]) -> bytes:
 
     for item in summaries:
         pdf.set_font("Helvetica", "B", 13)
-        pdf.cell(0, 8, item["name"], new_x="LMARGIN", new_y="NEXT")
+        # Handle encoding issues for file names
+        file_name = item.get("name", "Unknown").encode('latin-1', errors='ignore').decode('latin-1')
+        pdf.cell(0, 8, file_name, new_x="LMARGIN", new_y="NEXT")
         pdf.ln(2)
 
         pdf.set_font("Helvetica", "", 11)
-        pdf.multi_cell(0, 6, item["summary"])
+        # Handle encoding issues for summary text
+        summary_text = item.get("summary", "").encode('latin-1', errors='ignore').decode('latin-1')
+        pdf.multi_cell(0, 6, summary_text)
         pdf.ln(8)
 
     return pdf.output()

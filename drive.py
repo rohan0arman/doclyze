@@ -14,6 +14,11 @@ SUPPORTED_MIMES = {
     "application/pdf": ".pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
     "text/plain": ".txt",
+    "text/csv": ".csv",
+    "text/markdown": ".md",
+    "text/x-markdown": ".md",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "application/vnd.ms-excel": ".xls",
 }
 
 # Google Docs/Sheets/Slides are online-only; export them as PDF
