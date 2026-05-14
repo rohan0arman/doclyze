@@ -4,7 +4,6 @@ import tempfile
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
@@ -30,23 +29,24 @@ EXPORT_MIMES = {
 }
 
 
-def authenticate():
-    """Run OAuth2 flow and return credentials."""
-    creds = None
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                "credentials.json", SCOPES
-            )
-            creds = flow.run_local_server(port=0)
-        with open("token.json", "w") as f:
-            f.write(creds.to_json())
-
+def authenticate(token_data: dict):
+    """Create Credentials object from OAuth token data."""
+    if not token_data:
+        raise Exception("User not authenticated. No token data provided.")
+    
+    creds = Credentials(
+        token=token_data.get("access_token"),
+        refresh_token=token_data.get("refresh_token"),
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=os.getenv("GOOGLE_CLIENT_ID"),
+        client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+        scopes=SCOPES,
+    )
+    
+    # Refresh if expired
+    if creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+    
     return creds
 
 
@@ -94,12 +94,16 @@ def download_file(service, file_meta: dict, dest_dir: str) -> str:
     return local_path
 
 
-def download_all_files(folder_id: str) -> list[dict]:
-    """Authenticate, list, and download all supported files.
+def download_all_files(folder_id: str, token_data: dict) -> list[dict]:
+    """Download all supported files from a Google Drive folder.
+
+    Args:
+        folder_id: Google Drive folder ID
+        token_data: OAuth token data from session
 
     Returns a list of dicts with keys: name, path, mime.
     """
-    creds = authenticate()
+    creds = authenticate(token_data)
     service = build("drive", "v3", credentials=creds)
 
     files = list_files(service, folder_id)

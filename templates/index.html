@@ -410,6 +410,18 @@
         </div>
 
         <div class="card">
+            {% if needs_auth %}
+            <div style="text-align: center; padding: 40px 20px;">
+                <div style="font-size: 3rem; margin-bottom: 20px;">🔐</div>
+                <h2 style="color: #667eea; margin-bottom: 12px;">Authentication Required</h2>
+                <p style="color: #666; margin-bottom: 24px; font-size: 1.05rem;">
+                    To access your Google Drive documents, please authenticate with your Google account.
+                </p>
+                <a href="/login/google" class="btn btn-primary" style="display: inline-block;">
+                    🔓 Authenticate with Google
+                </a>
+            </div>
+            {% else %}
             <form method="post" action="/summarize" onsubmit="handleFormSubmit(event)">
                 <div class="form-group">
                     <label for="folder_input">📁 Google Drive Folder URL or ID</label>
@@ -435,6 +447,7 @@
                     </div>
                 </div>
             </form>
+            {% endif %}
         </div>
 
         {% if error %}

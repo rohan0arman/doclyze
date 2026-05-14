@@ -2,13 +2,16 @@ import os
 import re
 import json
 from pathlib import Path
+from urllib.parse import urlencode
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
+from authlib.integrations.starlette_client import OAuth
 
-from drive import download_all_files
+from drive import download_all_files, authenticate
 from parser import extract_text
 from report import generate_csv, generate_pdf
 from summarizer import summarize_text
@@ -17,22 +20,31 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
 app = FastAPI(title="Doclyze")
+
+# Add session middleware
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SESSION_SECRET", "change-this-secret-key")
+)
+
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 summaries_store: list[dict] = []
 
-
-creds_raw = os.getenv("GOOGLE_CREDENTIALS_JSON")
-
-if not creds_raw:
-    raise RuntimeError("GOOGLE_CREDENTIALS_JSON missing")
-
-try:
-    creds = json.loads(creds_raw)
-except json.JSONDecodeError:
-    raise RuntimeError("Invalid GOOGLE_CREDENTIALS_JSON")
-
-Path("credentials.json").write_text(json.dumps(creds))
+# Configure OAuth
+oauth = OAuth()
+oauth.register(
+    name="google",
+    client_id=os.getenv("GOOGLE_CLIENT_ID"),
+    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    client_kwargs={
+        "scope": (
+            "openid email profile "
+            "https://www.googleapis.com/auth/drive.readonly"
+        )
+    },
+)
 
 
 def extract_folder_id(url_or_id: str) -> str | None:
@@ -61,15 +73,56 @@ def extract_folder_id(url_or_id: str) -> str | None:
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
+    # Check if user is authenticated
+    token = request.session.get("google_token")
+    needs_auth = not token
+    
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"summaries": summaries_store, "processing": False, "error": None},
+        context={
+            "summaries": summaries_store,
+            "processing": False,
+            "error": None,
+            "needs_auth": needs_auth
+        },
     )
+
+
+@app.get("/login/google")
+async def login_google(request: Request):
+    """Start Google OAuth flow."""
+    redirect_uri = request.url_for("auth_google_callback")
+    
+    return await oauth.google.authorize_redirect(
+        request,
+        str(redirect_uri),
+        access_type="offline",
+        prompt="consent",
+    )
+
+
+@app.get("/auth/google/callback")
+async def auth_google_callback(request: Request):
+    """Handle Google OAuth callback."""
+    try:
+        token = await oauth.google.authorize_access_token(request)
+        request.session["google_token"] = token
+        return RedirectResponse(url="/")
+    except Exception as e:
+        return HTMLResponse(
+            f"<h1>Authentication Failed</h1><p>Error: {str(e)}</p><a href='/'>Go back</a>",
+            status_code=400
+        )
 
 
 @app.post("/summarize", response_class=HTMLResponse)
 async def summarize(request: Request, folder_input: str = Form(...)):
+    # Check authentication first
+    token_data = request.session.get("google_token")
+    if not token_data:
+        return RedirectResponse(url="/login/google")
+    
     google_key = os.getenv("GOOGLE_API_KEY", "")
 
     if not google_key:
@@ -80,6 +133,7 @@ async def summarize(request: Request, folder_input: str = Form(...)):
                 "summaries": [],
                 "processing": False,
                 "error": "Missing GOOGLE_API_KEY in .env",
+                "needs_auth": False
             },
         )
     
@@ -94,10 +148,11 @@ async def summarize(request: Request, folder_input: str = Form(...)):
                 "summaries": [],
                 "processing": False,
                 "error": "Invalid folder URL or ID. Please enter a valid Google Drive folder URL or ID.",
+                "needs_auth": False
             },
         )
 
-    files = download_all_files(folder_id)
+    files = download_all_files(folder_id, token_data)
     if not files:
         return templates.TemplateResponse(
             request=request,
@@ -106,6 +161,7 @@ async def summarize(request: Request, folder_input: str = Form(...)):
                 "summaries": [],
                 "processing": False,
                 "error": "No supported documents found in the specified folder.",
+                "needs_auth": False
             },
         )
 
@@ -117,7 +173,7 @@ async def summarize(request: Request, folder_input: str = Form(...)):
             "name": f["name"], 
             "summary": summary,
             "path": f["path"],
-            "file_id": len(results)  # Simple ID for file reference
+            "file_id": len(results)
         })
 
     summaries_store.clear()
@@ -126,7 +182,7 @@ async def summarize(request: Request, folder_input: str = Form(...)):
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"summaries": results, "processing": False},
+        context={"summaries": results, "processing": False, "needs_auth": False},
     )
 
 

@@ -32,17 +32,31 @@ cp .env.example .env
 Edit `.env` and set:
 
 - `GOOGLE_API_KEY` — your Google AI Studio API key (get it from https://aistudio.google.com/apikey)
+- `GOOGLE_CREDENTIALS_JSON` — your OAuth Web App credentials (JSON content, see step 3 below)
 
 **Note:** You no longer need to set `GOOGLE_DRIVE_FOLDER_ID` in the .env file. Instead, paste the folder URL or ID directly in the web interface.
 
-### 3. Set up Google Drive API credentials
+### 3. Set up Google Drive API credentials (OAuth Web App)
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project (or select an existing one)
 3. Enable the **Google Drive API**
 4. Go to **Credentials** → **Create Credentials** → **OAuth 2.0 Client ID**
-5. Set application type to **Desktop App**
-6. Download the JSON file and save it as `credentials.json` in the project root
+5. Set application type to **Web application** (NOT Desktop App)
+6. Add authorized redirect URI: `http://localhost:8000/auth/callback`
+7. Download the JSON credentials file
+8. **Copy the entire JSON content** and paste it as `GOOGLE_CREDENTIALS_JSON` value in your `.env` file
+
+Example `.env`:
+```
+GOOGLE_API_KEY=your-gemini-api-key-here
+GOOGLE_CREDENTIALS_JSON={"type":"oauth2","client_id":"...","client_secret":"...","redirect_uris":["http://localhost:8000/auth/callback"]}
+```
+
+Or if the JSON is multi-line, you can use:
+```
+GOOGLE_CREDENTIALS_JSON='{"type":"oauth2","client_id":"...","client_secret":"...","redirect_uris":["http://localhost:8000/auth/callback"]}'
+```
 
 ### 4. Run the application
 
@@ -52,18 +66,31 @@ uv run python main.py
 
 The app will start at `http://127.0.0.1:8000`.
 
-On the first run, a browser window will open for Google OAuth authentication. After granting access, a `token.json` file will be saved locally so you don't need to re-authenticate each time.
+**First time setup:**
+1. Open `http://127.0.0.1:8000` in your browser
+2. Click **"Authenticate with Google"** button
+3. Sign in with your Google account and grant permission to access Google Drive
+4. You will be redirected back to the app automatically
+5. Your authentication token will be saved for future sessions
+
+**After authentication:**
+1. Enter your Google Drive folder URL or ID
+2. Click **"Scan & Summarize Documents"**
+3. View results and download summaries as CSV/PDF
 
 ## Usage
 
 1. Open `http://127.0.0.1:8000` in your browser
-2. **Paste your Google Drive folder URL** (or just the folder ID) into the input box
+2. If this is your first time, click **"Authenticate with Google"** button
+3. **Sign in with your Google account** and grant permission to access Drive
+4. After authentication, **paste your Google Drive folder URL** (or just the folder ID) into the input box
    - Example URL: `https://drive.google.com/drive/folders/1ABC...`
    - Or just the ID: `1ABC...`
-3. Click **"Scan & Summarize Documents"**
-4. The app will download all supported files from the folder, extract text, and generate AI summaries using Google Gemini
-5. View the results in the styled table
-6. Download summaries as **CSV** or **PDF** using the buttons below the table
+5. Click **"Scan & Summarize Documents"**
+6. The app will download all supported files from the folder, extract text, and generate AI summaries using Google Gemini
+7. View the results in the styled table
+8. Click file names to **download original files**
+9. Download all summaries as **CSV** or **PDF** using the buttons below the table
 
 ## Supported File Types
 
