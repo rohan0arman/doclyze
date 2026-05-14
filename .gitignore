@@ -17,4 +17,4 @@ token.json
 credentials.json
 
 # UV lock
-uv.lock
+# uv.lock
