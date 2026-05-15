@@ -43,8 +43,6 @@ app.add_middleware(
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-summaries_store: list[dict] = []
-
 # Configure OAuth
 oauth = OAuth()
 oauth.register(
@@ -91,11 +89,14 @@ async def home(request: Request):
     token = request.session.get("google_token")
     needs_auth = not token
     
+    # Get summaries from user's session (not shared globally)
+    user_summaries = request.session.get("summaries", [])
+    
     return templates.TemplateResponse(
         request=request,
         name="index.html",
         context={
-            "summaries": summaries_store,
+            "summaries": user_summaries,
             "processing": False,
             "error": None,
             "needs_auth": needs_auth
@@ -194,8 +195,9 @@ async def summarize(request: Request, folder_input: str = Form(...)):
             "file_id": len(results)
         })
 
-    summaries_store.clear()
-    summaries_store.extend(results)
+    # Store summaries in user's session (not globally)
+    request.session["summaries"] = results
+    request.session["file_paths"] = {str(i): f["path"] for i, f in enumerate(files)}
 
     return templates.TemplateResponse(
         request=request,
@@ -205,11 +207,12 @@ async def summarize(request: Request, folder_input: str = Form(...)):
 
 
 @app.get("/download/csv")
-async def download_csv():
-    if not summaries_store:
+async def download_csv(request: Request):
+    summaries = request.session.get("summaries", [])
+    if not summaries:
         return HTMLResponse("No summaries available. Run summarization first.", status_code=400)
 
-    csv_content = generate_csv(summaries_store)
+    csv_content = generate_csv(summaries)
     return StreamingResponse(
         iter([csv_content]),
         media_type="text/csv",
@@ -218,14 +221,15 @@ async def download_csv():
 
 
 @app.get("/download/pdf")
-async def download_pdf():
-    if not summaries_store:
+async def download_pdf(request: Request):
+    summaries = request.session.get("summaries", [])
+    if not summaries:
         return HTMLResponse(
             "No summaries available. Run summarization first.",
             status_code=400
         )
 
-    pdf_bytes = generate_pdf(summaries_store)
+    pdf_bytes = generate_pdf(summaries)
 
     return StreamingResponse(
         iter([bytes(pdf_bytes)]),   # FIX
@@ -237,13 +241,13 @@ async def download_pdf():
 
 
 @app.get("/download/file/{file_id}")
-async def download_file(file_id: int):
-    if file_id < 0 or file_id >= len(summaries_store):
-        return HTMLResponse("File not found.", status_code=404)
+async def download_file(request: Request, file_id: int):
+    # Get file path from user's session
+    file_paths = request.session.get("file_paths", {})
+    file_path = file_paths.get(str(file_id))
     
-    file_path = summaries_store[file_id].get("path")
     if not file_path or not os.path.exists(file_path):
-        return HTMLResponse("File not found on server.", status_code=404)
+        return HTMLResponse("File not found.", status_code=404)
     
     file_name = os.path.basename(file_path)
     
