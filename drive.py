@@ -50,8 +50,17 @@ def authenticate(token_data: dict):
     return creds
 
 
-def list_files(service, folder_id: str) -> list[dict]:
-    """List supported files inside a Google Drive folder."""
+def list_files(service, folder_id: str, max_files: int = 5) -> list[dict]:
+    """List supported files inside a Google Drive folder.
+    
+    Args:
+        service: Google Drive API service
+        folder_id: Folder ID to list files from
+        max_files: Maximum number of files to return (default: 5 to limit API costs)
+    
+    Returns:
+        List of supported files, limited to max_files count
+    """
     query = f"'{folder_id}' in parents and trashed = false"
     results = (
         service.files()
@@ -65,6 +74,10 @@ def list_files(service, folder_id: str) -> list[dict]:
         mime = f["mimeType"]
         if mime in SUPPORTED_MIMES or mime in EXPORT_MIMES:
             supported.append(f)
+            # Stop once we reach max_files to control costs
+            if len(supported) >= max_files:
+                break
+    
     return supported
 
 
@@ -94,19 +107,20 @@ def download_file(service, file_meta: dict, dest_dir: str) -> str:
     return local_path
 
 
-def download_all_files(folder_id: str, token_data: dict) -> list[dict]:
-    """Download all supported files from a Google Drive folder.
+def download_all_files(folder_id: str, token_data: dict, max_files: int = 5) -> list[dict]:
+    """Download supported files from a Google Drive folder.
 
     Args:
         folder_id: Google Drive folder ID
         token_data: OAuth token data from session
+        max_files: Maximum number of files to download (default: 5 to limit API costs)
 
     Returns a list of dicts with keys: name, path, mime.
     """
     creds = authenticate(token_data)
     service = build("drive", "v3", credentials=creds)
 
-    files = list_files(service, folder_id)
+    files = list_files(service, folder_id, max_files=max_files)
     if not files:
         return []
 

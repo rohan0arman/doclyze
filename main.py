@@ -21,6 +21,17 @@ load_dotenv(BASE_DIR / ".env")
 
 app = FastAPI(title="Doclyze")
 
+# Validate OAuth configuration on startup
+if not os.getenv("GOOGLE_CLIENT_ID") or not os.getenv("GOOGLE_CLIENT_SECRET"):
+    raise RuntimeError(
+        "ERROR: Missing OAuth credentials!\n"
+        "Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as separate environment variables.\n"
+        "Do NOT use combined credentials.json - extract client_id and client_secret separately."
+    )
+
+# Get max file count from env, default to 5
+MAX_FILE_COUNT = int(os.getenv("MAX_FILE_COUNT", "5"))
+
 # Add session middleware
 app.add_middleware(
     SessionMiddleware,
@@ -152,7 +163,7 @@ async def summarize(request: Request, folder_input: str = Form(...)):
             },
         )
 
-    files = download_all_files(folder_id, token_data)
+    files = download_all_files(folder_id, token_data, max_files=MAX_FILE_COUNT)
     if not files:
         return templates.TemplateResponse(
             request=request,
