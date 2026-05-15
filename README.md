@@ -21,44 +21,56 @@ cd doclyze
 uv sync
 ```
 
-### 2. Configure environment variables
+### 2. Configure Google Drive API OAuth credentials
 
-Copy the example env file and fill in your keys:
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project (or select an existing one)
+3. Enable the **Google Drive API**
+4. Go to **Credentials** → **Create Credentials** → **OAuth 2.0 Client ID**
+   - Application type: **Web application**
+   - Add authorized redirect URIs:
+     - `http://localhost:8000/auth/google/callback`
+     - `http://127.0.0.1:8000/auth/google/callback`
+     - (For production: `https://your-domain.com/auth/google/callback`)
+5. Copy your **Client ID** and **Client Secret**
+
+### 3. Set environment variables
+
+Copy and fill in `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and set:
+Edit `.env` with:
 
-- `GOOGLE_API_KEY` — your Google AI Studio API key (get it from https://aistudio.google.com/apikey)
-- `GOOGLE_CREDENTIALS_JSON` — your OAuth Web App credentials (JSON content, see step 3 below)
+```env
+# Google OAuth credentials (from Google Cloud Console)
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
 
-**Note:** You no longer need to set `GOOGLE_DRIVE_FOLDER_ID` in the .env file. Instead, paste the folder URL or ID directly in the web interface.
+# Google API key (for Gemini access)
+GOOGLE_API_KEY=your-api-key
 
-### 3. Set up Google Drive API credentials (OAuth Web App)
+# Session secret for security (any random string, min 32 chars)
+SESSION_SECRET=your-random-secret
 
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project (or select an existing one)
-3. Enable the **Google Drive API**
-4. Go to **Credentials** → **Create Credentials** → **OAuth 2.0 Client ID**
-5. Set application type to **Web application** (NOT Desktop App)
-6. Add authorized redirect URI: `http://localhost:8000/auth/callback`
-7. Download the JSON credentials file
-8. **Copy the entire JSON content** and paste it as `GOOGLE_CREDENTIALS_JSON` value in your `.env` file
+# Maximum files to process per folder (default: 5)
+MAX_FILE_COUNT=5
 
-Example `.env`:
-```
-GOOGLE_API_KEY=your-gemini-api-key-here
-GOOGLE_CREDENTIALS_JSON={"type":"oauth2","client_id":"...","client_secret":"...","redirect_uris":["http://localhost:8000/auth/callback"]}
+# OAuth redirect URI (set for production deployments)
+OAUTH_REDIRECT_URI=http://localhost:8000/auth/google/callback
 ```
 
-Or if the JSON is multi-line, you can use:
-```
-GOOGLE_CREDENTIALS_JSON='{"type":"oauth2","client_id":"...","client_secret":"...","redirect_uris":["http://localhost:8000/auth/callback"]}'
-```
+### 4. Get Google API Key
 
-### 4. Run the application
+1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
+2. Click **Get API Key**
+3. Copy and paste into `.env` as `GOOGLE_API_KEY`
+
+## Running the Application
+
+### Local Development
 
 ```bash
 uv run python main.py
@@ -68,15 +80,35 @@ The app will start at `http://127.0.0.1:8000`.
 
 **First time setup:**
 1. Open `http://127.0.0.1:8000` in your browser
-2. Click **"Authenticate with Google"** button
+2. Click **"Login with Google"** button
 3. Sign in with your Google account and grant permission to access Google Drive
-4. You will be redirected back to the app automatically
-5. Your authentication token will be saved for future sessions
+4. You'll be redirected back to the app automatically
+5. Your authentication token is saved for future sessions
 
 **After authentication:**
-1. Enter your Google Drive folder URL or ID
+1. Paste a Google Drive folder URL or ID
 2. Click **"Scan & Summarize Documents"**
+   - Processes up to `MAX_FILE_COUNT` files (default: 5)
+   - Skips unsupported file types
 3. View results and download summaries as CSV/PDF
+
+### Production Deployment (Railway, etc.)
+
+When deploying to production:
+
+1. Set `OAUTH_REDIRECT_URI` to your production URL:
+   ```env
+   OAUTH_REDIRECT_URI=https://your-domain.com/auth/google/callback
+   ```
+
+2. Register the redirect URI in Google Cloud Console:
+   - Go to Credentials → OAuth Client
+   - Add to **Authorized redirect URIs**:
+     ```
+     https://your-domain.com/auth/google/callback
+     ```
+
+3. Set all required environment variables in your hosting platform (Railway, etc.)
 
 ## Usage
 
